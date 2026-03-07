@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { Book, Zap, LayoutDashboard, Mic } from 'lucide-react';
+import { Book, Zap, LayoutDashboard, Mic, HelpCircle } from 'lucide-react';
 
 export default function Navbar() {
     const linkClass = ({ isActive }) =>
@@ -34,6 +34,10 @@ export default function Navbar() {
                     <NavLink to="/speaking" className={linkClass}>
                         <Mic size={18} />
                         Speaking
+                    </NavLink>
+                    <NavLink to="/speaking/qa" className={linkClass}>
+                        <HelpCircle size={18} />
+                        Q&A
                     </NavLink>
                     <NavLink to="/dictionary" className={linkClass}>
                         <Book size={18} />

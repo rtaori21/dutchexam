@@ -11,6 +11,7 @@ import QAEditor from './pages/speaking/QAEditor';
 import FlashcardPractice from './pages/speaking/FlashcardPractice';
 import ConversationPractice from './pages/speaking/ConversationPractice';
 import AudioPractice from './pages/speaking/AudioPractice';
+import QABrowser from './pages/speaking/QABrowser';
 
 function App() {
   return (
@@ -22,6 +23,7 @@ function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/dictionary" element={<Dictionary />} />
             <Route path="/practice" element={<Flashcards />} />
+            <Route path="/speaking/qa" element={<QABrowser />} />
             <Route path="/speaking" element={<SpeakingHub />} />
             <Route path="/speaking/profile" element={<SpeakingProfile />} />
             <Route path="/speaking/topic/:topicId" element={<TopicDetail />} />

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api';
-import { Volume2, RotateCw, ThumbsUp, ThumbsDown, CheckCircle } from 'lucide-react';
+import { Volume2, RotateCw, ThumbsUp, ThumbsDown, CheckCircle, RefreshCw } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
 export default function Flashcards() {
@@ -36,11 +36,11 @@ export default function Flashcards() {
         window.speechSynthesis.speak(msg);
     };
 
-    const handleResponse = async (correct) => {
+    const handleResponse = async (result) => {
         if (!currentWord) return;
 
         try {
-            await api.post('/progress', { wordId: currentWord.id, correct });
+            await api.post('/progress', { wordId: currentWord.id, result });
 
             // Move to next
             if (currentIndex < queue.length - 1) {
@@ -85,7 +85,7 @@ export default function Flashcards() {
                 onClick={() => setFlipped(!flipped)}
                 style={{
                     perspective: '1000px',
-                    height: '400px',
+                    height: '340px',
                     cursor: 'pointer'
                 }}
             >
@@ -133,7 +133,8 @@ export default function Flashcards() {
                         flexDirection: 'column',
                         justifyContent: 'center',
                         alignItems: 'center',
-                        background: 'var(--bg-card)'
+                        background: 'var(--bg-card)',
+                        overflow: 'auto'
                     }}>
                         <h2 style={{ fontSize: '2rem', color: 'var(--accent)' }}>{currentWord.english}</h2>
 
@@ -154,21 +155,29 @@ export default function Flashcards() {
             </div>
 
             {/* Controls */}
-            <div style={{ display: 'flex', gap: '20px', marginTop: '30px', justifyContent: 'center', visibility: flipped ? 'visible' : 'hidden' }}>
+            <div style={{ display: 'flex', gap: '12px', marginTop: '40px', justifyContent: 'center', visibility: flipped ? 'visible' : 'hidden' }}>
                 <button
                     className="btn"
-                    style={{ background: 'var(--error)', color: 'white', width: '150px' }}
-                    onClick={() => handleResponse(false)}
+                    style={{ background: 'var(--error)', color: 'white', flex: 1, maxWidth: '160px' }}
+                    onClick={() => handleResponse('incorrect')}
                 >
-                    <ThumbsDown size={20} />
+                    <ThumbsDown size={18} />
                     Incorrect
                 </button>
                 <button
                     className="btn"
-                    style={{ background: 'var(--success)', color: 'white', width: '150px' }}
-                    onClick={() => handleResponse(true)}
+                    style={{ background: 'var(--warning)', color: 'white', flex: 1, maxWidth: '160px' }}
+                    onClick={() => handleResponse('remind')}
                 >
-                    <ThumbsUp size={20} />
+                    <RefreshCw size={18} />
+                    Remind Again
+                </button>
+                <button
+                    className="btn"
+                    style={{ background: 'var(--success)', color: 'white', flex: 1, maxWidth: '160px' }}
+                    onClick={() => handleResponse('correct')}
+                >
+                    <ThumbsUp size={18} />
                     Correct
                 </button>
             </div>

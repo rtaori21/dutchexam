@@ -81,4 +81,34 @@ router.get('/review', (req, res) => {
     }
 });
 
+// POST /api/words
+router.post('/', (req, res) => {
+    const { dutch, english, ipa, example_dutch, example_english, category } = req.body;
+
+    if (!dutch || !english) {
+        return res.status(400).json({ error: 'dutch and english are required' });
+    }
+
+    try {
+        const stmt = db.prepare(`
+            INSERT INTO words (dutch, english, ipa, example_dutch, example_english, category)
+            VALUES (@dutch, @english, @ipa, @example_dutch, @example_english, @category)
+        `);
+
+        const result = stmt.run({
+            dutch,
+            english,
+            ipa: ipa || null,
+            example_dutch: example_dutch || null,
+            example_english: example_english || null,
+            category: category || 'general'
+        });
+
+        const word = db.prepare('SELECT * FROM words WHERE id = ?').get(result.lastInsertRowid);
+        res.status(201).json(word);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 module.exports = router;

@@ -2,6 +2,58 @@ const express = require('express');
 const router = express.Router();
 const db = require('../db');
 
+// GET /api/speaking/qa/all?search=...&topicId=...&page=1&limit=20
+router.get('/all', (req, res) => {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+    const offset = (page - 1) * limit;
+    const search = req.query.search ? `%${req.query.search}%` : null;
+    const topicId = req.query.topicId || null;
+
+    try {
+        let where = '1=1';
+        const params = [];
+
+        if (topicId) {
+            where += ' AND qa.topic_id = ?';
+            params.push(topicId);
+        }
+        if (search) {
+            where += ' AND (qa.question_en LIKE ? OR qa.question_nl LIKE ? OR qa.answer_en LIKE ? OR qa.answer_nl LIKE ?)';
+            params.push(search, search, search, search);
+        }
+
+        const qas = db.prepare(`
+            SELECT qa.*, t.name as topic_name, t.slug as topic_slug,
+                sp.confidence, sp.times_practiced
+            FROM speaking_qa qa
+            JOIN speaking_topics t ON t.id = qa.topic_id
+            LEFT JOIN speaking_progress sp ON sp.qa_id = qa.id
+            WHERE ${where}
+            ORDER BY t.sort_order ASC, qa.sort_order ASC, qa.id ASC
+            LIMIT ? OFFSET ?
+        `).all(...params, limit, offset);
+
+        const total = db.prepare(`
+            SELECT COUNT(*) as count
+            FROM speaking_qa qa
+            JOIN speaking_topics t ON t.id = qa.topic_id
+            WHERE ${where}
+        `).get(...params).count;
+
+        // Also return topic list for the filter dropdown
+        const topics = db.prepare('SELECT id, name FROM speaking_topics ORDER BY sort_order ASC').all();
+
+        res.json({
+            data: qas,
+            topics,
+            pagination: { page, limit, total, totalPages: Math.ceil(total / limit) }
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
+
 // GET /api/speaking/qa/:topicId
 router.get('/:topicId', (req, res) => {
     try {

@@ -19,9 +19,15 @@ const INTERVALS = [
 ];
 
 // POST /api/progress
-// Body: { wordId, correct: boolean }
+// Body: { wordId, result: "correct"|"incorrect"|"remind" }
+// Also supports legacy { wordId, correct: boolean }
 router.post('/', (req, res) => {
-    const { wordId, correct } = req.body;
+    const { wordId } = req.body;
+    // Support both new 'result' field and legacy 'correct' boolean
+    let result = req.body.result;
+    if (!result) {
+        result = req.body.correct ? 'correct' : 'incorrect';
+    }
     const now = Date.now();
 
     try {
@@ -31,17 +37,24 @@ router.post('/', (req, res) => {
         let box = current ? current.box : 0;
         let nextReview = now;
 
-        if (correct) {
+        if (result === 'correct') {
             // Move to next box, cap at 5
             box = Math.min(box + 1, 5);
+        } else if (result === 'remind') {
+            // Keep current box, but schedule a quick review in 10 minutes
+            // Don't advance the box — user got it right but wants reinforcement
         } else {
-            // Reset to box 1 (or 0?) - Standard Leitner resets to 1 or 0. Let's say 1 so we don't spam instantly.
+            // incorrect — reset to box 1
             box = 1;
         }
 
         // Calculate next review time
-        const interval = INTERVALS[box] || INTERVALS[INTERVALS.length - 1];
-        nextReview = now + interval;
+        if (result === 'remind') {
+            nextReview = now + 10 * 60 * 1000; // 10 minutes
+        } else {
+            const interval = INTERVALS[box] || INTERVALS[INTERVALS.length - 1];
+            nextReview = now + interval;
+        }
 
         const mastered = box >= 5 ? 1 : 0;
 

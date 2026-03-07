@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import api from '../api';
-import { Volume2, Search, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Volume2, Search, ChevronLeft, ChevronRight, Plus, X, Save } from 'lucide-react';
 
 export default function Dictionary() {
     const [words, setWords] = useState([]);
@@ -8,6 +8,9 @@ export default function Dictionary() {
     const [page, setPage] = useState(1);
     const [totalPages, setTotalPages] = useState(1);
     const [loading, setLoading] = useState(false);
+    const [showForm, setShowForm] = useState(false);
+    const [form, setForm] = useState({ dutch: '', english: '', ipa: '', example_dutch: '', example_english: '', category: '' });
+    const [saving, setSaving] = useState(false);
 
     const fetchWords = async () => {
         setLoading(true);
@@ -23,7 +26,7 @@ export default function Dictionary() {
     };
 
     useEffect(() => {
-        const timer = setTimeout(fetchWords, 300); // Debounce search
+        const timer = setTimeout(fetchWords, 300);
         return () => clearTimeout(timer);
     }, [page, search]);
 
@@ -33,9 +36,34 @@ export default function Dictionary() {
         window.speechSynthesis.speak(msg);
     };
 
+    const handleSave = async () => {
+        if (!form.dutch.trim() || !form.english.trim()) return;
+        setSaving(true);
+        try {
+            await api.post('/words', form);
+            setForm({ dutch: '', english: '', ipa: '', example_dutch: '', example_english: '', category: '' });
+            setShowForm(false);
+            fetchWords();
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const inputStyle = {
+        width: '100%',
+        padding: '10px 12px',
+        borderRadius: 'var(--radius-md)',
+        border: '1px solid var(--glass-border)',
+        background: 'var(--bg-dark)',
+        color: 'white',
+        fontSize: '0.9rem'
+    };
+
     return (
         <div className="animate-fade-in">
-            <div style={{ display: 'flex', gap: '20px', marginBottom: '20px' }}>
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '20px', alignItems: 'center' }}>
                 <div style={{ position: 'relative', flex: 1 }}>
                     <Search style={{ position: 'absolute', left: 12, top: 12, color: 'var(--text-muted)' }} size={20} />
                     <input
@@ -54,7 +82,58 @@ export default function Dictionary() {
                         }}
                     />
                 </div>
+                <button
+                    className="btn btn-primary"
+                    onClick={() => setShowForm(!showForm)}
+                    style={{ whiteSpace: 'nowrap' }}
+                >
+                    {showForm ? <X size={18} /> : <Plus size={18} />}
+                    {showForm ? 'Cancel' : 'Add Word'}
+                </button>
             </div>
+
+            {showForm && (
+                <div className="card" style={{ marginBottom: '20px', padding: '20px' }}>
+                    <h3 style={{ margin: '0 0 16px', fontSize: '1.1rem' }}>Add New Word</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                        <div>
+                            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Dutch *</label>
+                            <input style={inputStyle} value={form.dutch} onChange={e => setForm({ ...form, dutch: e.target.value })} placeholder="e.g. huis" />
+                        </div>
+                        <div>
+                            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>English *</label>
+                            <input style={inputStyle} value={form.english} onChange={e => setForm({ ...form, english: e.target.value })} placeholder="e.g. house" />
+                        </div>
+                        <div>
+                            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Pronunciation</label>
+                            <input style={inputStyle} value={form.ipa} onChange={e => setForm({ ...form, ipa: e.target.value })} placeholder="e.g. hows" />
+                        </div>
+                        <div>
+                            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Category</label>
+                            <input style={inputStyle} value={form.category} onChange={e => setForm({ ...form, category: e.target.value })} placeholder="e.g. housing" />
+                        </div>
+                        <div style={{ gridColumn: '1 / -1' }}>
+                            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Example (Dutch)</label>
+                            <input style={inputStyle} value={form.example_dutch} onChange={e => setForm({ ...form, example_dutch: e.target.value })} placeholder="e.g. Ik woon in een groot huis" />
+                        </div>
+                        <div style={{ gridColumn: '1 / -1' }}>
+                            <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '4px', display: 'block' }}>Example (English)</label>
+                            <input style={inputStyle} value={form.example_english} onChange={e => setForm({ ...form, example_english: e.target.value })} placeholder="e.g. I live in a big house" />
+                        </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '12px', marginTop: '16px', justifyContent: 'flex-end' }}>
+                        <button className="btn btn-outline" onClick={() => setShowForm(false)}>Cancel</button>
+                        <button
+                            className="btn btn-primary"
+                            onClick={handleSave}
+                            disabled={saving || !form.dutch.trim() || !form.english.trim()}
+                        >
+                            <Save size={16} />
+                            {saving ? 'Saving...' : 'Save Word'}
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {loading ? (
                 <div style={{ textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div>
