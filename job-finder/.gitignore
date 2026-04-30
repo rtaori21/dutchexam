@@ -1,0 +1,13 @@
+.env
+.venv/
+backend/.venv/
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+node_modules/
+.next/
+out/
+data/jobs.db
+data/output/
+.DS_Store

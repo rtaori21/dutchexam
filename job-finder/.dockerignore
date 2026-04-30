@@ -1,0 +1,24 @@
+# Build artifacts and caches
+**/.venv/
+**/__pycache__/
+**/*.pyc
+**/.pytest_cache/
+**/node_modules/
+**/.next/
+**/out/
+**/dist/
+
+# Local data and secrets — mounted in via volumes instead
+backend/.env
+data/jobs.db
+data/output/
+data/linkedin_state.json
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Git internals
+.git/
+.gitignore

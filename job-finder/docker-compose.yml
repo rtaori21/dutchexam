@@ -1,0 +1,63 @@
+# Job Finder — runs the backend (FastAPI + scrapers + scheduler) and the
+# Next.js dashboard as two services. Persistent state is bind-mounted from
+# the host so your data survives `docker compose down` and is portable
+# across machines (just copy the project folder).
+#
+# Quickstart:
+#   1. (optional) edit backend/.env  — or leave blank, the /env page handles it
+#   2. docker compose up -d
+#   3. open http://localhost:3737
+#
+# Stop:    docker compose down
+# Update:  docker compose up -d --build
+# Logs:    docker compose logs -f backend
+# Shell:   docker compose exec backend bash
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+    image: job-finder-backend:local
+    container_name: job-finder-backend
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    volumes:
+      # .env is host-managed so secrets stay out of the image and edits via
+      # /env page persist between restarts.
+      - ./backend/.env:/app/backend/.env
+      # Editable runtime config — search profile, companies, resumes.
+      - ./config:/app/config
+      - ./resumes:/app/resumes
+      # SQLite + tailored output PDFs + LinkedIn cookie state. Treat as
+      # precious — back this up if you've accumulated history.
+      - ./data:/app/data
+    # host.docker.internal lets the container reach Ollama running on the
+    # host (Mac/Windows native, Linux uses the host-gateway alias).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c 'import urllib.request,sys; sys.exit(0 if urllib.request.urlopen(\"http://localhost:8787/api/health\").status==200 else 1)'"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+      args:
+        # Browsers run on the host and hit the host's exposed backend port,
+        # so localhost is correct from the user's perspective regardless of
+        # the docker network.
+        NEXT_PUBLIC_API_BASE: http://localhost:8787/api
+    image: job-finder-frontend:local
+    container_name: job-finder-frontend
+    restart: unless-stopped
+    ports:
+      - "3737:3737"
+    depends_on:
+      backend:
+        condition: service_started

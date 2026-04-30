@@ -1,0 +1,125 @@
+candidate:
+  name: Rahul Taori
+  email: rahul.taori@tomtom.com
+  phone: +31 685249402
+  location: Amsterdam, Netherlands
+  linkedin: linkedin.com/in/rahultaori
+  visa_status: Requires visa sponsorship
+location_filter:
+  countries:
+  - Netherlands
+  cities:
+  - Amsterdam
+  - Rotterdam
+  - Utrecht
+  - The Hague
+  - Den Haag
+  - Eindhoven
+  - Hilversum
+  - Delft
+  - Haarlem
+  allow_remote: true
+  strict: true
+target_roles:
+  primary:
+  - Senior Manager AI
+  - Director Data Science
+  - Director AI
+  - Head of Data
+  - Head of AI
+  - Engineering Manager AI
+  - Engineering Manager Data
+  - Principal Data Scientist
+  secondary:
+  - Technical Program Manager AI
+  - Lead Data Scientist
+  - Staff Data Scientist
+  - AI Solutions Architect
+resume_routing:
+- match:
+  - manager
+  - director
+  - head
+  - vp
+  - lead
+  use: manager.md
+- match:
+  - principal
+  - staff
+  - senior data scientist
+  use: principal_ds.md
+- match:
+  - data engineer
+  - platform
+  use: data_engineer.md
+- match:
+  - data scientist
+  - ml engineer
+  - ai engineer
+  use: data_scientist.md
+default_resume: manager.md
+scrapers:
+  jobspy:
+    sites:
+    - indeed
+    - glassdoor
+    - linkedin
+    site_intervals:
+      linkedin: 30
+      indeed: 60
+      glassdoor: 120
+      google: 60
+      ziprecruiter: 60
+    search_terms:
+    - AI Manager
+    - Director Data Science
+    - Head of Data
+    - Engineering Manager AI
+    - Principal Data Scientist
+    - Senior Manager Data Science
+    countries:
+    - location: Netherlands
+      country_indeed: Netherlands
+    - location: Remote, Europe
+      country_indeed: Netherlands
+    results_wanted: 25
+    hours_old: 24
+filters:
+  exclude_titles:
+  - Junior
+  - Intern
+  - Graduate
+  - .NET
+  - Java Developer
+  - iOS
+  - Android
+  - Embedded
+  - Salesforce
+  - 'SAP '
+  - PHP
+  - Frontend
+  - Designer
+  exclude_companies: []
+  min_seniority_keywords:
+  - senior
+  - staff
+  - principal
+  - lead
+  - manager
+  - director
+  - head
+  - vp
+  - chief
+scoring:
+  weights:
+    title_match: 40
+    location_match: 25
+    seniority_match: 25
+    keyword_density: 10
+  must_have_any:
+  - data
+  - ai
+  - ml
+  - analytics
+  - machine learning
+  - artificial intelligence

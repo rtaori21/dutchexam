@@ -1,0 +1,60 @@
+# Companies to monitor directly via their career pages (Phase 2 — Playwright scrapers).
+# ATS types: greenhouse, lever, ashby, workday, smartrecruiters, custom
+# JobSpy already covers LinkedIn/Indeed/Glassdoor — this is for direct portal monitoring.
+
+companies:
+  - name: Booking.com
+    ats: workday
+    url: https://careers.booking.com/
+
+  - name: Adyen
+    ats: greenhouse
+    url: https://boards.greenhouse.io/adyen
+
+  - name: Uber Amsterdam
+    ats: greenhouse
+    url: https://www.uber.com/global/en/careers/list/?location=AMS
+
+  - name: Miro
+    ats: greenhouse
+    url: https://boards.greenhouse.io/miro
+
+  - name: Mollie
+    ats: greenhouse
+    url: https://boards.greenhouse.io/mollie
+
+  - name: Bunq
+    ats: lever
+    url: https://jobs.lever.co/bunq
+
+  - name: Picnic
+    ats: greenhouse
+    url: https://picnic.app/jobs
+
+  - name: Bol.com
+    ats: workday
+    url: https://werkenbij.bol.com/en/
+
+  - name: ING
+    ats: workday
+    url: https://www.ing.jobs/
+
+  - name: Philips
+    ats: workday
+    url: https://www.careers.philips.com/
+
+  - name: ASML
+    ats: workday
+    url: https://www.asml.com/en/careers
+
+  - name: TomTom
+    ats: workday
+    url: https://www.tomtom.com/careers/
+
+  - name: Mistral AI
+    ats: ashby
+    url: https://jobs.ashbyhq.com/mistral
+
+  - name: Stripe Amsterdam
+    ats: greenhouse
+    url: https://stripe.com/jobs/search?office_locations=Europe--Amsterdam

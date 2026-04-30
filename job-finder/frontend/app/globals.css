@@ -1,0 +1,12 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body { background: #0b0d12; color: #e6e9ee; }
+
+.btn { @apply px-3 py-1.5 rounded-md text-sm font-medium border border-border hover:border-accent transition-colors; }
+.btn-primary { @apply bg-accent text-bg border-accent hover:opacity-90; }
+.btn-success { @apply border-success text-success hover:bg-success hover:text-bg; }
+.btn-danger { @apply border-danger text-danger hover:bg-danger hover:text-bg; }
+.chip { @apply text-xs px-2 py-0.5 rounded-full border border-border text-muted; }
+.card { @apply bg-panel border border-border rounded-lg p-4; }

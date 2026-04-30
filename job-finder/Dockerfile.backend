@@ -1,0 +1,28 @@
+# Python + Playwright Chromium pre-installed (multi-arch: amd64 + arm64)
+FROM mcr.microsoft.com/playwright/python:v1.49.0-jammy
+
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    TZ=Europe/Amsterdam
+
+WORKDIR /app
+
+# Install backend deps first (cache layer)
+COPY backend/pyproject.toml backend/pyproject.toml
+RUN pip install --upgrade pip && pip install -e backend
+
+# Copy the rest of the app
+COPY backend ./backend
+COPY config ./config
+COPY resumes ./resumes
+COPY scripts/docker-backend-entrypoint.sh /usr/local/bin/entrypoint.sh
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# data/ is bind-mounted at runtime; ensure the path exists for first boot
+RUN mkdir -p /app/data /app/data/output
+
+EXPOSE 8787
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["uvicorn", "--app-dir", "backend", "app.main:app", "--host", "0.0.0.0", "--port", "8787"]
