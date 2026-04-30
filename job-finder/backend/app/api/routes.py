@@ -51,6 +51,47 @@ def list_jobs(
         return list(s.execute(sel).scalars())
 
 
+# This must be declared BEFORE /jobs/{job_id} so the literal path wins the
+# match — otherwise FastAPI tries to parse "duplicates" as an int job_id.
+@router.get("/jobs/duplicates")
+def find_duplicates():
+    """Group jobs sharing canonical_key — same posting across LinkedIn/Indeed/Greenhouse/etc."""
+    from app.scrapers.canonical import canonical_key
+
+    with get_session() as s:
+        jobs = list(s.query(Job).filter(Job.status != "rejected").all())
+    by_key: dict[str, list] = {}
+    for j in jobs:
+        key = j.canonical_key or canonical_key(j.company, j.title, j.location)
+        by_key.setdefault(key, []).append(j)
+    clusters = []
+    for key, group in by_key.items():
+        if len(group) < 2:
+            continue
+        clusters.append(
+            {
+                "canonical_key": key,
+                "count": len(group),
+                "jobs": [
+                    {
+                        "id": j.id,
+                        "title": j.title,
+                        "company": j.company,
+                        "location": j.location,
+                        "source": j.source,
+                        "url": j.url,
+                        "match_score": j.match_score,
+                        "llm_score": j.llm_score,
+                        "status": j.status,
+                    }
+                    for j in sorted(group, key=lambda x: -(x.match_score or 0))
+                ],
+            }
+        )
+    clusters.sort(key=lambda c: -c["count"])
+    return clusters
+
+
 @router.get("/jobs/{job_id}", response_model=JobOut)
 def get_job(job_id: int):
     with get_session() as s:
@@ -162,45 +203,6 @@ def stats():
 def trigger_scrape():
     """Manual trigger — useful for the dashboard 'Refresh' button."""
     return run_scrape_pass()
-
-
-@router.get("/jobs/duplicates")
-def find_duplicates():
-    """Group jobs sharing canonical_key — same posting across LinkedIn/Indeed/Greenhouse/etc."""
-    from app.scrapers.canonical import canonical_key
-
-    with get_session() as s:
-        jobs = list(s.query(Job).filter(Job.status != "rejected").all())
-    by_key: dict[str, list] = {}
-    for j in jobs:
-        key = j.canonical_key or canonical_key(j.company, j.title, j.location)
-        by_key.setdefault(key, []).append(j)
-    clusters = []
-    for key, group in by_key.items():
-        if len(group) < 2:
-            continue
-        clusters.append(
-            {
-                "canonical_key": key,
-                "count": len(group),
-                "jobs": [
-                    {
-                        "id": j.id,
-                        "title": j.title,
-                        "company": j.company,
-                        "location": j.location,
-                        "source": j.source,
-                        "url": j.url,
-                        "match_score": j.match_score,
-                        "llm_score": j.llm_score,
-                        "status": j.status,
-                    }
-                    for j in sorted(group, key=lambda x: -(x.match_score or 0))
-                ],
-            }
-        )
-    clusters.sort(key=lambda c: -c["count"])
-    return clusters
 
 
 @router.post("/jobs/rescore")
