@@ -217,6 +217,58 @@ def test_llm():
     return health()
 
 
+@router.get("/llm-usage")
+def llm_usage(days: int = 30):
+    """Token usage rolled up by day + kind for the /env page panel."""
+    from datetime import datetime, timedelta
+    from sqlalchemy import select, func
+    from app.db.session import get_session
+    from app.db.models import LLMCall
+
+    since = datetime.utcnow() - timedelta(days=days)
+    with get_session() as s:
+        rows = list(s.execute(
+            select(LLMCall).where(LLMCall.sent_at >= since).order_by(LLMCall.sent_at.desc())
+        ).scalars())
+
+        # Today (last 24h) totals
+        today_since = datetime.utcnow() - timedelta(hours=24)
+        today_calls = [r for r in rows if r.sent_at >= today_since]
+
+    def _sum(rs):
+        return {
+            "calls": len(rs),
+            "prompt_tokens": sum(r.prompt_tokens for r in rs),
+            "completion_tokens": sum(r.completion_tokens for r in rs),
+            "errors": sum(1 for r in rs if r.error),
+        }
+
+    by_kind: dict[str, list] = {}
+    for r in rows:
+        by_kind.setdefault(r.kind or "other", []).append(r)
+
+    by_backend: dict[str, list] = {}
+    for r in rows:
+        by_backend.setdefault(r.backend or "?", []).append(r)
+
+    return {
+        "today": _sum(today_calls),
+        "window": _sum(rows),
+        "days": days,
+        "by_kind": {k: _sum(v) for k, v in by_kind.items()},
+        "by_backend": {k: _sum(v) for k, v in by_backend.items()},
+        "recent": [
+            {
+                "id": r.id, "backend": r.backend, "model": r.model, "kind": r.kind,
+                "prompt_tokens": r.prompt_tokens, "completion_tokens": r.completion_tokens,
+                "duration_ms": r.duration_ms, "error": r.error[:200],
+                "sent_at": r.sent_at.isoformat(),
+            }
+            for r in rows[:20]
+        ],
+    }
+
+
 @router.post("/test/telegram")
 def test_telegram():
     from app.notifier.telegram import send_telegram

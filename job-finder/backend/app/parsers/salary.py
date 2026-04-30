@@ -88,6 +88,7 @@ def parse_salary_llm(description: str) -> dict | None:
             system=SALARY_LLM_SYSTEM,
             user=description[:6000],
             max_tokens=120,
+            kind="salary",
         )
     except Exception as e:
         log.warning("salary LLM extraction failed: %s", e)

@@ -88,4 +88,9 @@ export const api = {
   salaries: () => j<SalaryHistogram>(`/stats/salaries`),
   digestPreview: () => j<{ text: string }>(`/digest/preview`, { method: "POST" }),
   digestSend: () => j<{ sent: boolean; length: number }>(`/digest/send`, { method: "POST" }),
+  bulkStatus: (ids: number[], status: string, note = "") =>
+    j<{ requested: number; updated: number; skipped: number; invalid: number }>(
+      `/jobs/bulk-status`,
+      { method: "POST", body: JSON.stringify({ ids, status, note }) }
+    ),
 };

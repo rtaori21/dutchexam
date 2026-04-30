@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { envApi, type EnvDoc, type EnvVar } from "@/lib/env_config";
+import { envApi, type EnvDoc, type EnvVar, type LLMUsage } from "@/lib/env_config";
 
 function StatusChip({ isSet }: { isSet: boolean }) {
   return (
@@ -114,15 +114,86 @@ function Field({
 }
 
 
+function fmtNum(n: number): string {
+  if (n < 1000) return n.toString();
+  if (n < 1_000_000) return `${(n / 1000).toFixed(1)}k`;
+  return `${(n / 1_000_000).toFixed(2)}M`;
+}
+
+function UsagePanel({ usage }: { usage: LLMUsage | null }) {
+  if (!usage) return null;
+  const today = usage.today;
+  const window_ = usage.window;
+  return (
+    <div className="card border-accent">
+      <div className="flex items-baseline gap-3 flex-wrap">
+        <h2 className="text-sm font-semibold uppercase tracking-wide">LLM usage</h2>
+        <span className="text-xs text-muted">last {usage.days} days</span>
+      </div>
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-3">
+        <div>
+          <div className="text-xs text-muted">Today</div>
+          <div className="text-2xl font-semibold">{today.calls}</div>
+          <div className="text-xs text-muted mt-1">
+            {fmtNum(today.prompt_tokens)} in · {fmtNum(today.completion_tokens)} out
+            {today.errors > 0 && <span className="text-danger"> · {today.errors} err</span>}
+          </div>
+        </div>
+        <div>
+          <div className="text-xs text-muted">Window total</div>
+          <div className="text-2xl font-semibold">{window_.calls}</div>
+          <div className="text-xs text-muted mt-1">
+            {fmtNum(window_.prompt_tokens)} in · {fmtNum(window_.completion_tokens)} out
+          </div>
+        </div>
+        <div className="md:col-span-2">
+          <div className="text-xs text-muted">Breakdown by purpose</div>
+          <div className="text-xs mt-1 space-y-0.5">
+            {Object.entries(usage.by_kind).map(([k, v]) => (
+              <div key={k} className="flex justify-between">
+                <span>{k}</span>
+                <span className="text-muted">
+                  {v.calls} calls · {fmtNum(v.prompt_tokens + v.completion_tokens)} tok
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      {usage.recent.length > 0 && (
+        <details className="mt-3 text-xs">
+          <summary className="cursor-pointer text-muted hover:text-text">recent {usage.recent.length} calls</summary>
+          <div className="mt-2 space-y-1 font-mono">
+            {usage.recent.slice(0, 10).map((r) => (
+              <div key={r.id} className="flex gap-3">
+                <span className="text-muted">{new Date(r.sent_at).toLocaleTimeString()}</span>
+                <span>{r.backend}</span>
+                <span className="text-accent">{r.kind}</span>
+                <span className="text-muted">{r.prompt_tokens}+{r.completion_tokens} tok</span>
+                <span className="text-muted">{r.duration_ms}ms</span>
+                {r.error && <span className="text-danger truncate">{r.error.slice(0, 60)}</span>}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
+  );
+}
+
+
 export default function EnvPage() {
   const [doc, setDoc] = useState<EnvDoc | null>(null);
+  const [usage, setUsage] = useState<LLMUsage | null>(null);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [reveal, setReveal] = useState<Record<string, boolean>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
 
   async function load() {
-    setDoc(await envApi.get());
+    const [d, u] = await Promise.all([envApi.get(), envApi.llmUsage(30).catch(() => null)]);
+    setDoc(d);
+    setUsage(u);
     setDrafts({});
   }
   useEffect(() => { load(); }, []);
@@ -205,6 +276,8 @@ export default function EnvPage() {
           <div className={`text-sm ${msg.kind === "ok" ? "text-success" : "text-danger"}`}>{msg.text}</div>
         </div>
       )}
+
+      <UsagePanel usage={usage} />
 
       <div className="space-y-4">
         {doc.groups.map((g) => (

@@ -44,6 +44,7 @@ function FeedInner() {
   const debouncedQ = useDeferredValue(searchInput);
 
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [selected, setSelected] = useState<Set<number>>(new Set());
   const [stats, setStats] = useState<Stats | null>(null);
   const [salaries, setSalaries] = useState<SalaryHistogram | null>(null);
   const [loading, setLoading] = useState(true);
@@ -98,6 +99,34 @@ function FeedInner() {
 
   async function setStatus(id: number, status: string) {
     await api.setStatus(id, status);
+    refresh();
+  }
+
+  function toggleSelected(id: number) {
+    setSelected((s) => {
+      const next = new Set(s);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+  function selectAllVisible() {
+    setSelected(new Set(jobs.map((j) => j.id)));
+  }
+  function clearSelection() {
+    setSelected(new Set());
+  }
+  async function bulkSetStatus(status: string) {
+    if (selected.size === 0) return;
+    if (status === "rejected" && !confirm(`Reject ${selected.size} job${selected.size === 1 ? "" : "s"}?`)) return;
+    const ids = Array.from(selected);
+    setScrapeMsg(`Updating ${ids.length}…`);
+    try {
+      const r = await api.bulkStatus(ids, status);
+      setScrapeMsg(`Updated ${r.updated}, skipped ${r.skipped}, invalid ${r.invalid}`);
+    } catch (e: any) {
+      setScrapeMsg(`Bulk update failed: ${e.message}`);
+    }
+    clearSelection();
     refresh();
   }
 
@@ -231,6 +260,30 @@ function FeedInner() {
 
       {scrapeMsg && <div className="text-sm text-muted">{scrapeMsg}</div>}
 
+      {selected.size > 0 && (
+        <section className="card sticky top-0 z-20 flex items-center gap-3 flex-wrap shadow-xl border-accent">
+          <span className="font-medium">{selected.size} selected</span>
+          <button onClick={() => bulkSetStatus("rejected")} className="btn btn-danger">Reject</button>
+          <button onClick={() => bulkSetStatus("approved")} className="btn btn-success">Approve</button>
+          <button onClick={() => bulkSetStatus("applied")} className="btn">Mark applied</button>
+          <select
+            onChange={(e) => { if (e.target.value) bulkSetStatus(e.target.value); e.target.value = ""; }}
+            defaultValue=""
+            className="bg-panel border border-border rounded px-2 py-1.5 text-sm"
+          >
+            <option value="">More statuses…</option>
+            {STATUSES.filter(s => !["rejected","approved","applied"].includes(s)).map((s) => (
+              <option key={s} value={s}>{s}</option>
+            ))}
+          </select>
+          <span className="text-muted ml-auto text-sm">
+            <button onClick={selectAllVisible} className="hover:text-text">select all visible</button>
+            {" · "}
+            <button onClick={clearSelection} className="hover:text-text">clear</button>
+          </span>
+        </section>
+      )}
+
       <section className="space-y-2">
         {loading && jobs.length === 0 ? (
           <div className="card text-muted">Loading…</div>
@@ -240,7 +293,17 @@ function FeedInner() {
           </div>
         ) : (
           jobs.map((j) => (
-            <article key={j.id} className="card flex flex-col md:flex-row md:items-center gap-3">
+            <article
+              key={j.id}
+              className={`card flex flex-col md:flex-row md:items-center gap-3 ${selected.has(j.id) ? "border-accent" : ""}`}
+            >
+              <input
+                type="checkbox"
+                checked={selected.has(j.id)}
+                onChange={() => toggleSelected(j.id)}
+                className="h-4 w-4 accent-[var(--color-accent)] mt-1 md:mt-0"
+                aria-label={`Select ${j.title}`}
+              />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <Link href={`/jobs/${j.id}`} className="text-lg font-medium hover:text-accent truncate">

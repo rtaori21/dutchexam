@@ -60,4 +60,5 @@ def write_outreach_message(job_title: str, company: str, jd_excerpt: str) -> str
             f"Candidate:\n{json.dumps(cand)}\n\nNarrative:\n{json.dumps(narr)}",
         ],
         max_tokens=350,
+        kind="outreach",
     )

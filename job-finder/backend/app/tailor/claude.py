@@ -46,6 +46,7 @@ def tailor_resume(job_description: str, resume_version: str) -> str:
             f"Base resume (markdown):\n{base}",
         ],
         max_tokens=4000,
+        kind="tailor",
     )
 
 
@@ -55,6 +56,7 @@ def write_cover_letter(job_description: str, tailored_resume_md: str) -> str:
         user=f"Target job:\n{job_description}",
         cached_blocks=[f"Resume (truth source):\n{tailored_resume_md}"],
         max_tokens=1500,
+        kind="cover",
     )
 
 

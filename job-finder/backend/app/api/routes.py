@@ -5,7 +5,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy import select, func
 from app.db.session import get_session
 from app.db.models import Job, StatusEvent, JobStatus
-from app.api.schemas import JobOut, StatusUpdate, NotesUpdate, StatsOut, SalaryHistogram, BundleOut
+from app.api.schemas import JobOut, StatusUpdate, BulkStatusUpdate, BulkStatusResult, NotesUpdate, StatsOut, SalaryHistogram, BundleOut
 from app.config import settings
 from app.scrapers.runner import run_scrape_pass
 
@@ -154,6 +154,31 @@ def update_status(job_id: int, body: StatusUpdate, background: BackgroundTasks):
     if fire_bundle:
         background.add_task(_build_bundle_safe, job_id)
     return result
+
+
+@router.post("/jobs/bulk-status", response_model=BulkStatusResult)
+def bulk_status(body: BulkStatusUpdate):
+    """Update status for many jobs in one round-trip. Skips no-op transitions."""
+    if body.status not in JobStatus:
+        raise HTTPException(400, f"Invalid status. Allowed: {JobStatus}")
+    if not body.ids:
+        return BulkStatusResult(requested=0, updated=0, skipped=0, invalid=0)
+    updated = skipped = invalid = 0
+    with get_session() as s:
+        for jid in body.ids:
+            j = s.get(Job, jid)
+            if not j:
+                invalid += 1
+                continue
+            if j.status == body.status:
+                skipped += 1
+                continue
+            prev = j.status
+            j.status = body.status
+            s.add(StatusEvent(job_id=jid, from_status=prev, to_status=body.status, note=body.note or "bulk update"))
+            updated += 1
+        s.commit()
+    return BulkStatusResult(requested=len(body.ids), updated=updated, skipped=skipped, invalid=invalid)
 
 
 @router.patch("/jobs/{job_id}/notes", response_model=JobOut)

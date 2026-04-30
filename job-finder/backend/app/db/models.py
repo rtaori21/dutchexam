@@ -128,6 +128,21 @@ class Notification(Base):
     sent_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
 
+class LLMCall(Base):
+    """One row per LLM API call. Powers the token-usage panel on /env."""
+    __tablename__ = "llm_calls"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    backend: Mapped[str] = mapped_column(String(20), index=True)  # ollama|openai|anthropic
+    model: Mapped[str] = mapped_column(String(100), default="")
+    kind: Mapped[str] = mapped_column(String(40), default="")  # tailor|cover|talking|outreach|score|test|other
+    prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    duration_ms: Mapped[int] = mapped_column(Integer, default=0)
+    error: Mapped[str] = mapped_column(Text, default="")
+    sent_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+
+
 class KnowledgeItem(Base):
     """User-owned knowledge: projects, cover-letter templates, Q&A, notes,
     profile links. Becomes part of the LLM context for tailoring + matching

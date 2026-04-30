@@ -45,6 +45,7 @@ def deep_score(job_title: str, company: str, location: str, description: str) ->
                 f"Candidate:\n{json.dumps(cand)}\n\nTarget roles:\n{json.dumps(roles)}\n\nNarrative:\n{json.dumps(narr)}"
             ],
             max_tokens=300,
+            kind="score",
         )
     except Exception as e:
         log.warning("deep_score LLM call failed for %r: %s", job_title, e)
@@ -62,11 +63,14 @@ def deep_score(job_title: str, company: str, location: str, description: str) ->
 
 
 def deep_score_top_n(top_n: int = 20) -> dict:
-    """Score the top N un-deep-scored jobs from the DB. Returns a summary."""
+    """Score the top N un-deep-scored jobs from the DB. Returns a summary
+    and writes a ScrapeRun audit row so the run shows up on /observability."""
+    from datetime import datetime
     from sqlalchemy import select
     from app.db.session import get_session
-    from app.db.models import Job
+    from app.db.models import Job, ScrapeRun
 
+    started = datetime.utcnow()
     with get_session() as s:
         candidates = list(
             s.execute(
@@ -88,4 +92,31 @@ def deep_score_top_n(top_n: int = 20) -> dict:
             s.commit()
         scored += 1
     log.info("deep_score: %d/%d jobs scored", scored, len(candidates))
-    return {"candidates": len(candidates), "scored": scored}
+
+    finished = datetime.utcnow()
+    # Truthful status: ok if all candidates scored, partial if some failed
+    # (Groq rate limit), error if zero scored when there were candidates.
+    if not candidates:
+        status = "ok"
+    elif scored == 0:
+        status = "error"
+    elif scored < len(candidates):
+        status = "partial"
+    else:
+        status = "ok"
+    with get_session() as s:
+        s.add(ScrapeRun(
+            kind="llm_score",
+            label=f"deep_score(top {top_n})",
+            started_at=started,
+            finished_at=finished,
+            duration_s=(finished - started).total_seconds(),
+            rows_seen=len(candidates),
+            new_jobs=scored,
+            updated_jobs=0,
+            alerts_sent=0,
+            status=status,
+            error="" if status != "error" else "no candidates scored (LLM down or rate-limited)",
+        ))
+        s.commit()
+    return {"candidates": len(candidates), "scored": scored, "status": status}

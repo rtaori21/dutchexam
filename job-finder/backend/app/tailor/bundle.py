@@ -32,6 +32,7 @@ def write_talking_points(job_description: str, resume_md: str) -> str:
             f"Resume:\n{resume_md}",
         ],
         max_tokens=600,
+        kind="talking",
     )
 
 

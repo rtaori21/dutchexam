@@ -4,7 +4,12 @@ from __future__ import annotations
 from app.config import settings
 
 
+last_usage: dict | None = None
+
+
 def chat(system: str, user: str, *, cached_blocks: list[str], max_tokens: int) -> str:
+    global last_usage
+    last_usage = None
     try:
         import anthropic
     except ImportError as e:
@@ -23,4 +28,12 @@ def chat(system: str, user: str, *, cached_blocks: list[str], max_tokens: int) -
         system=sys_blocks,
         messages=[{"role": "user", "content": user}],
     )
+    u = getattr(msg, "usage", None)
+    if u is not None:
+        last_usage = {
+            "prompt_tokens": (getattr(u, "input_tokens", 0) or 0)
+                + (getattr(u, "cache_creation_input_tokens", 0) or 0)
+                + (getattr(u, "cache_read_input_tokens", 0) or 0),
+            "completion_tokens": getattr(u, "output_tokens", 0) or 0,
+        }
     return msg.content[0].text

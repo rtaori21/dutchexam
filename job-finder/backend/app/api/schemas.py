@@ -41,6 +41,19 @@ class StatusUpdate(BaseModel):
     note: str = ""
 
 
+class BulkStatusUpdate(BaseModel):
+    ids: list[int]
+    status: str
+    note: str = ""
+
+
+class BulkStatusResult(BaseModel):
+    requested: int
+    updated: int
+    skipped: int
+    invalid: int
+
+
 class NotesUpdate(BaseModel):
     notes: str
 

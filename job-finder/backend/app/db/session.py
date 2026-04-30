@@ -31,6 +31,8 @@ _MIGRATIONS = {
 
 def _migrate() -> None:
     insp = inspect(engine)
+    # Refresh view in case create_all just added new tables (otherwise has_table is stale)
+    insp.clear_cache() if hasattr(insp, "clear_cache") else None
     with engine.begin() as conn:
         for table, cols in _MIGRATIONS.items():
             if not insp.has_table(table):
