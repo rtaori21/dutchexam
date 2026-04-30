@@ -28,7 +28,11 @@ def extract_contacts(description: str) -> dict:
         return {"emails": [], "linkedin": []}
     emails = sorted({e.lower() for e in EMAIL_RE.findall(description)})
     emails = [e for e in emails if e.split("@", 1)[0] not in GENERIC_LOCAL_PARTS]
-    handles = sorted({h.rstrip("/").lower() for h in LINKEDIN_RE.findall(description)})
+    # Strip trailing punctuation (.,;:)/...) that often follows a URL in prose
+    handles = sorted({
+        re.sub(r"[\.,;:)\]\s]+$", "", h).rstrip("/").lower()
+        for h in LINKEDIN_RE.findall(description)
+    })
     return {"emails": emails, "linkedin": handles}
 
 

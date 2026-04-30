@@ -10,13 +10,20 @@ import re
 NOISE_TITLE_TOKENS = {
     "senior", "sr", "junior", "jr", "staff", "principal", "lead", "head",
     "manager", "director", "vp", "chief", "of", "the", "and", "&", "remote",
-    "hybrid", "fulltime", "full-time", "part-time", "(m/f/d)", "(m/f)", "m/f/d",
+    "hybrid", "fulltime", "full-time", "part-time",
+    # German/French gender-inclusive tags
+    "m", "f", "d", "w", "x", "h", "mfd", "mwd", "mfx", "hf",
+    # EU-region tags that show up in titles
+    "eu", "eea", "emea", "apac", "amer",
 }
 COMPANY_NOISE = {"inc", "ltd", "llc", "ag", "gmbh", "bv", "n.v.", "corp", "co", "the"}
 
 
 def _norm(s: str) -> str:
     s = (s or "").lower()
+    # Drop common parenthesised tags before tokenising so "(m/f/d)" doesn't
+    # turn into letters that survive the noise filter.
+    s = re.sub(r"\([^)]*\)", " ", s)
     s = re.sub(r"[^\w\s]", " ", s)
     s = re.sub(r"\s+", " ", s).strip()
     return s

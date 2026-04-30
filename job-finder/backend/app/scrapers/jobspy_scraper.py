@@ -41,16 +41,17 @@ def _to_dt(v):
         return None
 
 
-def scrape(sites_override: list[str] | None = None) -> list[dict]:
+def scrape(sites_override: list[str] | None = None) -> tuple[list[dict], list[dict]]:
     """Run a JobSpy pull for every (search_term × country) pair, dedupe, return rows.
-    `sites_override`, when given, narrows to a subset of the profile's sites — used
-    by the per-site scheduled jobs so each site (LinkedIn / Indeed / etc.) can run
-    on its own interval."""
+
+    Returns `(rows, errors)` so the caller can flag a partial run when one
+    site (typically Glassdoor on multi-word locations) fails while others
+    succeed."""
     try:
         from jobspy import scrape_jobs
     except ImportError:
         log.error("python-jobspy not installed. Run: pip install -e backend")
-        return []
+        return [], [{"error": "python-jobspy not installed"}]
 
     profile = load_profile()
     js = profile["scrapers"]["jobspy"]
@@ -68,6 +69,7 @@ def scrape(sites_override: list[str] | None = None) -> list[dict]:
 
     seen: set[tuple[str, str]] = set()
     rows: list[dict] = []
+    errors: list[dict] = []
 
     for term in js["search_terms"]:
         for c in countries:
@@ -93,6 +95,7 @@ def scrape(sites_override: list[str] | None = None) -> list[dict]:
                 )
             except Exception as e:
                 log.exception("JobSpy failed for term=%r location=%r: %s", term, location, e)
+                errors.append({"term": term, "location": location, "sites": sites_for_call, "error": str(e)[:200]})
                 continue
 
             if df is None or df.empty:
@@ -128,6 +131,6 @@ def scrape(sites_override: list[str] | None = None) -> list[dict]:
                         "job_type": _safe_str(r.get("job_type")) or None,
                     }
                 )
-    log.info("JobSpy returned %d unique rows across %d term×country pairs",
-             len(rows), len(js['search_terms']) * len(countries))
-    return rows
+    log.info("JobSpy returned %d unique rows across %d term×country pairs (%d errors)",
+             len(rows), len(js['search_terms']) * len(countries), len(errors))
+    return rows, errors

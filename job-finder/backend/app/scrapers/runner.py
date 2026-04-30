@@ -21,17 +21,18 @@ log = logging.getLogger(__name__)
 
 def _initial_status_for(session, row: dict) -> tuple[str, str]:
     """Cross-source auto-reject: if a job with the same canonical_key was
-    previously rejected (e.g. you rejected the LinkedIn version), suppress
-    new arrivals of equivalent jobs from any other source."""
+    previously rejected OR marked lost, suppress new arrivals of equivalent
+    jobs from any other source."""
     src = row.get("source", "?")
     ck = row.get("canonical_key")
     if not ck:
         return "new", f"discovered via {src}"
-    rejected = session.execute(
-        select(Job).where(Job.canonical_key == ck, Job.status == "rejected").limit(1)
+    suppressed_statuses = ("rejected", "lost")
+    prior = session.execute(
+        select(Job).where(Job.canonical_key == ck, Job.status.in_(suppressed_statuses)).limit(1)
     ).scalar_one_or_none()
-    if rejected:
-        return "rejected", f"auto-rejected: matches previously rejected #{rejected.id}"
+    if prior:
+        return "rejected", f"auto-rejected: matches previously {prior.status} #{prior.id}"
     return "new", f"discovered via {src}"
 
 
@@ -98,9 +99,10 @@ def run_scrape_pass(sites: list[str] | None = None) -> dict:
     high_match_ids: list[int] = []
     breakdown: Counter[str] = Counter()
     error = ""
+    scrape_errors: list[dict] = []
 
     try:
-        rows = jobspy_scrape(sites_override=sites)
+        rows, scrape_errors = jobspy_scrape(sites_override=sites)
         with get_session() as session:
             for row in rows:
                 score, reasoning, resume = score_job(row)
@@ -132,7 +134,17 @@ def run_scrape_pass(sites: list[str] | None = None) -> dict:
 
         notify_new_matches(high_match_ids)
 
-    final_status = "error" if error else ("partial" if breakdown and len(breakdown) < len(sites or [1, 2, 3]) else "ok")
+    if error:
+        final_status = "error"
+    elif scrape_errors:
+        # Some site/term/country fetches failed (e.g. Glassdoor on multi-word locations)
+        final_status = "partial"
+        if not error:
+            err_summary = "; ".join(f"{e.get('sites')} {e.get('location')!r}: {e.get('error','')[:60]}" for e in scrape_errors[:3])
+            error = f"{len(scrape_errors)} fetch failures: {err_summary}"
+    else:
+        final_status = "ok"
+
     _close_run_row(
         run_id, status=final_status, error=error, started=started,
         rows_seen=len(rows), new_jobs=new_count, updated_jobs=updated_count,

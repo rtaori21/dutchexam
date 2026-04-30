@@ -29,24 +29,41 @@ def list_jobs(
     status: str | None = Query(None),
     min_score: int = Query(0, ge=0, le=100),
     source: str | None = Query(None),
-    q: str | None = Query(None, description="Search title, company, location (case-insensitive)"),
+    q: str | None = Query(None, description="Search title, company, location, and description"),
     limit: int = Query(100, le=500),
     offset: int = Query(0, ge=0),
 ):
-    from sqlalchemy import or_
+    from sqlalchemy import or_, func
 
     with get_session() as s:
         sel = select(Job)
         if status:
             sel = sel.where(Job.status == status)
         if min_score:
-            sel = sel.where(Job.match_score >= min_score)
+            # Pass when EITHER heuristic OR LLM clears the threshold.
+            # max() with COALESCE so a missing llm_score doesn't poison the comparison.
+            best = func.max(
+                func.coalesce(Job.match_score, 0),
+                func.coalesce(Job.llm_score, 0),
+            )
+            sel = sel.where(best >= min_score)
         if source:
             sel = sel.where(Job.source == source)
         if q:
             like = f"%{q}%"
-            sel = sel.where(or_(Job.title.ilike(like), Job.company.ilike(like), Job.location.ilike(like)))
-        sel = sel.order_by(Job.match_score.desc().nullslast(), Job.discovered_at.desc())
+            sel = sel.where(or_(
+                Job.title.ilike(like),
+                Job.company.ilike(like),
+                Job.location.ilike(like),
+                Job.description.ilike(like),
+            ))
+        # Sort by best of (heuristic, llm) so LLM-rated gems surface above
+        # heuristic-only middling matches.
+        best_sort = func.max(
+            func.coalesce(Job.llm_score, 0),
+            func.coalesce(Job.match_score, 0),
+        )
+        sel = sel.order_by(best_sort.desc(), Job.discovered_at.desc())
         sel = sel.limit(limit).offset(offset)
         return list(s.execute(sel).scalars())
 

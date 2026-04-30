@@ -63,6 +63,23 @@ export default function JobPage({ params }: { params: Promise<{ id: string }> })
   }
   useEffect(() => { load(); }, [jobId]);
 
+  // While the auto-tailor background task is generating the bundle, poll
+  // the bundle endpoint every 5s so the UI flips from "Tailoring…" to the
+  // tabbed viewer the moment the artefacts land — without manual refresh.
+  const tailorInProgress =
+    job?.status === "approved" && bundle && !bundle.tailored_resume_md;
+  useEffect(() => {
+    if (!tailorInProgress) return;
+    const t = setInterval(async () => {
+      try {
+        const b = await api.bundle(jobId);
+        setBundle(b);
+        if (b.tailored_resume_md) clearInterval(t);
+      } catch {}
+    }, 5000);
+    return () => clearInterval(t);
+  }, [tailorInProgress, jobId]);
+
   async function setStatus(s: string) {
     setBusy("status");
     await api.setStatus(jobId, s);
@@ -190,7 +207,17 @@ export default function JobPage({ params }: { params: Promise<{ id: string }> })
                 <button onClick={autoApply} disabled={busy === "apply"} className="btn">Easy Apply</button>
               </div>
             </div>
-            {!bundle?.tailored_resume_md ? (
+            {tailorInProgress ? (
+              <div className="flex items-center gap-3 text-sm bg-bg border border-border rounded p-3">
+                <span className="inline-block w-2.5 h-2.5 rounded-full bg-warn animate-pulse" />
+                <div>
+                  <div className="font-medium">Tailoring with the LLM…</div>
+                  <div className="text-xs text-muted mt-0.5">
+                    Generating tailored resume + cover letter + talking points + recruiter outreach. Usually 30–60s.
+                  </div>
+                </div>
+              </div>
+            ) : !bundle?.tailored_resume_md ? (
               <div className="text-xs text-muted">No bundle yet. Click "Tailor now" or set status to <em>approved</em> to auto-generate.</div>
             ) : (
               <>
