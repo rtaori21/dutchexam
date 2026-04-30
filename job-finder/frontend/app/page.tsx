@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useState, useTransition, useDeferredValue } from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import { api, type Job, type Stats, type SalaryHistogram } from "@/lib/api";
+import { api, type Job, type Stats, type SalaryHistogram, type TailorRetry } from "@/lib/api";
 import { sourceLabel } from "@/lib/observability";
 import ActivityStrip from "@/components/ActivityStrip";
 
@@ -47,6 +47,11 @@ function FeedInner() {
   const [selected, setSelected] = useState<Set<number>>(new Set());
   const [stats, setStats] = useState<Stats | null>(null);
   const [salaries, setSalaries] = useState<SalaryHistogram | null>(null);
+  const [tailorQueue, setTailorQueue] = useState<TailorRetry[]>([]);
+  const [showImport, setShowImport] = useState(false);
+  const [importUrl, setImportUrl] = useState("");
+  const [importBusy, setImportBusy] = useState(false);
+  const [importMsg, setImportMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [scraping, startScrape] = useTransition();
   const [scrapeMsg, setScrapeMsg] = useState<string | null>(null);
@@ -71,7 +76,7 @@ function FeedInner() {
   async function refresh() {
     setLoading(true);
     try {
-      const [jobsRes, statsRes, salRes] = await Promise.all([
+      const [jobsRes, statsRes, salRes, queue] = await Promise.all([
         api.jobs({
           status: statusFilter === "all" ? undefined : statusFilter,
           min_score: minScore,
@@ -80,15 +85,51 @@ function FeedInner() {
         }),
         api.stats(),
         api.salaries().catch(() => null),
+        api.tailorQueue().catch(() => []),
       ]);
       setJobs(jobsRes);
       setStats(statsRes);
       setSalaries(salRes);
+      setTailorQueue(queue);
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
     }
+  }
+
+  async function submitImport() {
+    if (!importUrl.trim()) return;
+    setImportBusy(true);
+    setImportMsg(null);
+    try {
+      const r = await api.importUrl(importUrl.trim());
+      if (r.ok && r.imported) {
+        setImportMsg(`Imported #${r.job_id}: ${r.title} @ ${r.company} (score ${r.score})`);
+        setImportUrl("");
+        refresh();
+      } else if (r.ok && r.already_exists) {
+        setImportMsg(`Already in DB as #${r.job_id} (status=${r.status}, score=${r.score})`);
+      } else if (r.ok === false && r.preview) {
+        setImportMsg(`Filtered out: ${r.reason} — preview: ${r.preview.title} @ ${r.preview.company} (${r.preview.location})`);
+      } else {
+        setImportMsg("Imported");
+      }
+    } catch (e: any) {
+      setImportMsg(`Import failed: ${e.message}`);
+    } finally {
+      setImportBusy(false);
+    }
+  }
+
+  async function runTailorQueueNow() {
+    try {
+      const r = await api.tailorQueueRunNow();
+      setScrapeMsg(`Tailor retry: ${r.succeeded} succeeded, ${r.failed} failed of ${r.attempted}`);
+    } catch (e: any) {
+      setScrapeMsg(`Retry failed: ${e.message}`);
+    }
+    refresh();
   }
   useEffect(() => {
     refresh();
@@ -194,6 +235,32 @@ function FeedInner() {
 
       <ActivityStrip />
 
+      {tailorQueue.length > 0 && (
+        <section className="card border-warn">
+          <div className="flex items-center gap-3 flex-wrap">
+            <span className="inline-block w-2 h-2 rounded-full bg-warn animate-pulse" />
+            <span className="text-sm">
+              <strong>{tailorQueue.length}</strong> tailor{tailorQueue.length === 1 ? "" : "s"} pending retry
+              {tailorQueue.some((q) => q.exhausted) && (
+                <span className="text-danger ml-2">
+                  ({tailorQueue.filter((q) => q.exhausted).length} exhausted)
+                </span>
+              )}
+            </span>
+            <span className="text-xs text-muted">
+              {tailorQueue
+                .slice(0, 3)
+                .map((q) => `#${q.job_id} (attempt ${q.attempts}/${q.max_attempts})`)
+                .join(" · ")}
+              {tailorQueue.length > 3 && ` · +${tailorQueue.length - 3} more`}
+            </span>
+            <button onClick={runTailorQueueNow} className="btn btn-primary ml-auto text-xs">
+              Retry now
+            </button>
+          </div>
+        </section>
+      )}
+
       {salaries && salaries.sample_size > 0 && (
         <section className="card">
           <div className="flex items-baseline justify-between mb-3">
@@ -250,6 +317,9 @@ function FeedInner() {
               max={100}
             />
           </label>
+          <button onClick={() => setShowImport((v) => !v)} className="btn">
+            {showImport ? "Cancel" : "+ Import URL"}
+          </button>
           <button onClick={deepScore} disabled={scraping} className="btn">LLM score top 20</button>
           <button onClick={sendDigest} className="btn">Send digest now</button>
           <button onClick={triggerScrape} disabled={scraping} className="btn btn-primary">
@@ -259,6 +329,31 @@ function FeedInner() {
       </section>
 
       {scrapeMsg && <div className="text-sm text-muted">{scrapeMsg}</div>}
+
+      {showImport && (
+        <section className="card border-accent">
+          <h2 className="text-sm font-semibold mb-2">Import a single job by URL</h2>
+          <p className="text-xs text-muted mb-3">
+            Paste any job posting URL (LinkedIn / Greenhouse / Lever / Ashby / Workday / company career page).
+            The system fetches it once, scores it against your profile, and adds it to the feed if it passes the filters.
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="url"
+              value={importUrl}
+              onChange={(e) => setImportUrl(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && submitImport()}
+              placeholder="https://..."
+              className="flex-1 bg-bg border border-border rounded px-3 py-2 text-sm font-mono"
+              autoFocus
+            />
+            <button onClick={submitImport} disabled={importBusy || !importUrl.trim()} className="btn btn-primary">
+              {importBusy ? "Fetching…" : "Import"}
+            </button>
+          </div>
+          {importMsg && <div className="text-sm text-muted mt-2">{importMsg}</div>}
+        </section>
+      )}
 
       {selected.size > 0 && (
         <section className="card sticky top-0 z-20 flex items-center gap-3 flex-wrap shadow-xl border-accent">

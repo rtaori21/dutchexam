@@ -93,4 +93,31 @@ export const api = {
       `/jobs/bulk-status`,
       { method: "POST", body: JSON.stringify({ ids, status, note }) }
     ),
+  importUrl: (url: string) =>
+    j<{
+      ok: boolean;
+      imported?: boolean;
+      already_exists?: boolean;
+      job_id?: number;
+      status?: string;
+      score?: number;
+      title?: string;
+      company?: string;
+      reason?: string;
+      preview?: { title: string; company: string; location: string };
+    }>(`/jobs/import-url`, { method: "POST", body: JSON.stringify({ url }) }),
+  tailorQueue: () => j<TailorRetry[]>(`/tailor-queue`),
+  tailorQueueRunNow: () => j<{ attempted: number; succeeded: number; failed: number }>(`/tailor-queue/run`, { method: "POST" }),
+  tailorQueueReset: (job_id: number) => j<{ ok: boolean }>(`/tailor-queue/${job_id}/reset`, { method: "POST" }),
+};
+
+export type TailorRetry = {
+  id: number;
+  job_id: number;
+  attempts: number;
+  max_attempts: number;
+  last_error: string;
+  last_attempt_at: string | null;
+  next_attempt_at: string;
+  exhausted: boolean;
 };

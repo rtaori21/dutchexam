@@ -128,6 +128,22 @@ class Notification(Base):
     sent_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
 
 
+class TailorRetry(Base):
+    """A row sits here when build_bundle() failed (typically Groq rate-limit
+    or Anthropic 529). The retry scheduler drains this every few minutes
+    until the bundle succeeds, attempts hit the cap, or the user manually
+    resets it via the dashboard."""
+    __tablename__ = "tailor_retries"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    job_id: Mapped[int] = mapped_column(ForeignKey("jobs.id"), unique=True, index=True)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    last_error: Mapped[str] = mapped_column(Text, default="")
+    last_attempt_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    next_attempt_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class LLMCall(Base):
     """One row per LLM API call. Powers the token-usage panel on /env."""
     __tablename__ = "llm_calls"

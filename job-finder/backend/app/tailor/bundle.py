@@ -2,6 +2,7 @@
 and recruiter outreach message. Triggered when status moves new → approved."""
 
 from __future__ import annotations
+import hashlib
 import json
 import logging
 from pathlib import Path
@@ -12,6 +13,19 @@ from app.tailor.claude import tailor_resume, write_cover_letter
 from app.parsers.contacts import write_outreach_message
 
 log = logging.getLogger(__name__)
+
+
+def _bundle_hash(version: str, base_md: str, jd: str) -> str:
+    """Cache key for a tailored bundle. Same hash + same files on disk ->
+    we already produced this exact output before; no LLM needed."""
+    h = hashlib.sha256()
+    h.update(b"v1\n")
+    h.update(version.encode())
+    h.update(b"\n---\n")
+    h.update(base_md.encode())
+    h.update(b"\n---\n")
+    h.update(jd.encode())
+    return h.hexdigest()
 
 TALKING_POINTS_SYSTEM = """You are prepping a senior tech leader for an application/screening call.
 Produce exactly 3 talking points that connect concrete proof points from the candidate's resume
@@ -36,8 +50,11 @@ def write_talking_points(job_description: str, resume_md: str) -> str:
     )
 
 
-def build_bundle(job_id: int) -> dict:
-    """Generate every piece of content for an approved job and persist to disk + DB."""
+def build_bundle(job_id: int, *, force: bool = False) -> dict:
+    """Generate every piece of content for an approved job and persist to disk + DB.
+
+    Caches by `(version, base_md, jd)` content hash — calling Re-tailor on the
+    same inputs is now free and instant. Pass `force=True` to bypass the cache."""
     from app.db.session import get_session
     from app.db.models import Job
 
@@ -50,16 +67,42 @@ def build_bundle(job_id: int) -> dict:
         out_dir.mkdir(parents=True, exist_ok=True)
         title, company, jd = job.title, job.company, job.description
 
-    log.info("Bundle for job %d (%s) version=%s", job_id, title, version)
+    base_path = settings.resumes_dir / version
+    base_md = base_path.read_text() if base_path.exists() else ""
+    expected_hash = _bundle_hash(version, base_md, jd)
+    hash_path = out_dir / "bundle.hash"
+    resume_path = out_dir / "resume.md"
+
+    # Cache hit: same inputs, all artefacts present -> skip LLM calls entirely.
+    if (
+        not force
+        and hash_path.exists()
+        and hash_path.read_text().strip() == expected_hash
+        and resume_path.exists()
+        and (out_dir / "cover_letter.md").exists()
+    ):
+        log.info("Bundle cache HIT for job %d — skipping LLM calls", job_id)
+        return {
+            "job_id": job_id,
+            "resume_version": version,
+            "resume_path": str(resume_path),
+            "resume_pdf_path": str(out_dir / "resume.pdf") if (out_dir / "resume.pdf").exists() else None,
+            "cover_letter_path": str(out_dir / "cover_letter.md"),
+            "talking_points_path": str(out_dir / "talking_points.md"),
+            "outreach_path": str(out_dir / "outreach.md"),
+            "base_resume_path": str(out_dir / "resume.base.md") if (out_dir / "resume.base.md").exists() else None,
+            "cached": True,
+        }
+
+    log.info("Bundle for job %d (%s) version=%s — generating fresh", job_id, title, version)
 
     # 1. Tailored resume
     resume_md = tailor_resume(jd, version)
     (out_dir / "resume.md").write_text(resume_md)
 
     # Save base for diff viewer
-    base_path = settings.resumes_dir / version
     if base_path.exists():
-        (out_dir / "resume.base.md").write_text(base_path.read_text())
+        (out_dir / "resume.base.md").write_text(base_md)
 
     # 2. Cover letter
     cover_md = write_cover_letter(jd, resume_md)
@@ -88,12 +131,17 @@ def build_bundle(job_id: int) -> dict:
         job.recruiter_message = outreach
         s.commit()
 
+    # Persist cache key only on success
+    hash_path.write_text(expected_hash)
+
     return {
         "job_id": job_id,
+        "resume_version": version,
         "resume_path": str(out_dir / "resume.md"),
         "resume_pdf_path": str(pdf_path) if pdf_path else None,
         "cover_letter_path": str(out_dir / "cover_letter.md"),
         "talking_points_path": str(out_dir / "talking_points.md"),
         "outreach_path": str(out_dir / "outreach.md"),
         "base_resume_path": str(out_dir / "resume.base.md") if base_path.exists() else None,
+        "cached": False,
     }

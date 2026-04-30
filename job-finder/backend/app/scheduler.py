@@ -70,6 +70,10 @@ def start() -> None:
     _scheduler.add_job(send_digest, "cron", hour="8,20", minute=0, id="digest")
     # LLM deep scoring once a day at 07:30
     _scheduler.add_job(lambda: deep_score_top_n(20), "cron", hour=7, minute=30, id="deep_score")
+    # Drain the tailor retry queue every 5 minutes
+    from app.tailor.retry import run_due as run_tailor_retries
+    _scheduler.add_job(run_tailor_retries, "interval", minutes=5, id="tailor_retries",
+                       max_instances=1, coalesce=True)
     _scheduler.start()
     log.info("Scheduler started")
 

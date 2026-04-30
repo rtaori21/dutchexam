@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 from sqlalchemy import select, func
 from app.db.session import get_session
 from app.db.models import Job, StatusEvent, JobStatus
@@ -119,18 +120,26 @@ def get_job(job_id: int):
 
 
 def _build_bundle_safe(job_id: int) -> None:
-    """Run the full content bundle generation; swallow errors so background
-    invocation never breaks the API. Errors are logged, the user can retry
-    by clicking 'Re-tailor' on the detail page."""
+    """Run the full content bundle generation in the background. On failure
+    (typically Groq rate-limit / Anthropic 529) enqueue a retry — the
+    scheduler drains the queue with exponential backoff so the bundle
+    eventually lands without manual intervention."""
     import logging
 
     log = logging.getLogger("api.bundle_bg")
     try:
         from app.tailor.bundle import build_bundle
+        from app.tailor.retry import succeed
 
         build_bundle(job_id)
+        succeed(job_id)
     except Exception as e:
         log.exception("background bundle build failed for job %d: %s", job_id, e)
+        try:
+            from app.tailor.retry import enqueue
+            enqueue(job_id, str(e))
+        except Exception:
+            log.exception("failed to enqueue retry for job %d", job_id)
 
 
 @router.patch("/jobs/{job_id}/status", response_model=JobOut)
@@ -247,6 +256,50 @@ def trigger_scrape():
     return run_scrape_pass()
 
 
+class ImportUrlBody(BaseModel):
+    url: str
+
+
+@router.post("/jobs/import-url")
+def import_url(body: ImportUrlBody):
+    """Fetch a single job from any URL (Greenhouse / Lever / Ashby / LinkedIn /
+    generic) and run it through the same matcher + persist pipeline as the
+    scheduled scrapes."""
+    from app.scrapers.single_url import fetch_single
+    from app.scrapers.enrich import enrich_row
+    from app.scrapers.canonical import canonical_key
+    from app.matcher.heuristic import score_job
+    from app.scrapers.runner import _initial_status_for
+
+    row = fetch_single(body.url)
+    if not row:
+        raise HTTPException(400, "Could not parse this URL or fetch the job. Try the original posting page.")
+
+    score, reasoning, resume = score_job(row)
+    if score == 0:
+        return {"ok": False, "imported": False, "reason": reasoning, "preview": {
+            "title": row["title"], "company": row["company"], "location": row["location"]
+        }}
+
+    enrich_row(row)
+    row["canonical_key"] = canonical_key(row.get("company", ""), row.get("title", ""), row.get("location", ""))
+
+    with get_session() as s:
+        existing = s.execute(
+            select(Job).where(Job.source == row["source"], Job.external_id == row["external_id"])
+        ).scalar_one_or_none()
+        if existing:
+            return {"ok": True, "imported": False, "already_exists": True, "job_id": existing.id, "status": existing.status, "score": existing.match_score}
+
+        status, note = _initial_status_for(s, row)
+        job = Job(**row, status=status, match_score=score, match_reasoning=reasoning, suggested_resume=resume)
+        s.add(job)
+        s.flush()
+        s.add(StatusEvent(job_id=job.id, from_status=None, to_status=status, note=f"imported by URL: {note}"))
+        s.commit()
+        return {"ok": True, "imported": True, "job_id": job.id, "status": status, "score": score, "title": job.title, "company": job.company}
+
+
 @router.post("/jobs/rescore")
 def rescore_all():
     """Re-run the heuristic matcher over every persisted job. Called after
@@ -319,6 +372,30 @@ def download_resume_pdf(job_id: int):
     if not p.exists():
         raise HTTPException(404, "PDF not generated yet — click 'Tailor' first")
     return FileResponse(p, media_type="application/pdf", filename=f"resume_job_{job_id}.pdf")
+
+
+@router.get("/tailor-queue")
+def list_tailor_queue():
+    """Pending tailor retries — surfaces in the Feed banner so the user knows
+    the auto-tailor is still working (rate-limited or otherwise)."""
+    from app.tailor.retry import list_pending
+    return list_pending()
+
+
+@router.post("/tailor-queue/run")
+def run_tailor_queue_now():
+    """Force a drain pass right now. Useful when you've topped up Groq quota."""
+    from app.tailor.retry import run_due
+    return run_due()
+
+
+@router.post("/tailor-queue/{job_id}/reset")
+def reset_tailor_retry(job_id: int):
+    from app.tailor.retry import reset_one
+
+    if not reset_one(job_id):
+        raise HTTPException(404, "no retry row for that job")
+    return {"ok": True}
 
 
 @router.post("/jobs/deep-score")
