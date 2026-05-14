@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# One-shot launcher: starts FastAPI backend (8787) + Next.js dashboard (3000) together.
+# One-shot launcher: starts FastAPI backend (8787) + Next.js dashboard (3737) together.
+# Stops both with Ctrl-C (the trap below kills the whole process group).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -26,6 +27,6 @@ fi
 trap 'kill 0' EXIT
 echo "==> Starting backend on http://localhost:8787 (docs at /docs)"
 ( cd backend && uvicorn app.main:app --reload --port 8787 ) &
-echo "==> Starting frontend on http://localhost:3000"
+echo "==> Starting frontend on http://localhost:3737"
 ( cd frontend && npm run dev ) &
 wait
