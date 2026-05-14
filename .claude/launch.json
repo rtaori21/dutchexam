@@ -17,7 +17,7 @@
       "name": "job-finder-frontend",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "port": 3737,
+      "port": 8788,
       "autoPort": true,
       "cwd": "job-finder/frontend"
     }

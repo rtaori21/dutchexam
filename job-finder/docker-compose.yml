@@ -6,7 +6,7 @@
 # Quickstart:
 #   1. (optional) edit backend/.env  — or leave blank, the /env page handles it
 #   2. docker compose up -d
-#   3. open http://localhost:3737
+#   3. open http://localhost:8788
 #
 # Stop:    docker compose down
 # Update:  docker compose up -d --build
@@ -57,7 +57,7 @@ services:
     container_name: job-finder-frontend
     restart: unless-stopped
     ports:
-      - "3737:3737"
+      - "8788:8788"
     depends_on:
       backend:
         condition: service_started

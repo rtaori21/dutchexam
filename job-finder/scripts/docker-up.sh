@@ -24,7 +24,7 @@ docker compose up -d
 
 echo
 echo "Backend:   http://localhost:8787  (Swagger: /docs)"
-echo "Dashboard: http://localhost:3737"
+echo "Dashboard: http://localhost:8788"
 echo
 echo "Tail logs:   docker compose logs -f"
 echo "Stop:        docker compose down"

@@ -25,7 +25,7 @@ def _job_card_html(j: Job) -> str:
       <div style="margin-top:6px;color:#6b7280;font-size:13px">{j.match_reasoning}</div>
       <div style="margin-top:10px">
         <a href="{j.url}" style="background:#2563eb;color:#fff;padding:6px 12px;border-radius:6px;text-decoration:none">Open posting</a>
-        <a href="http://localhost:3737/jobs/{j.id}" style="margin-left:8px;color:#2563eb">Review in dashboard ↗</a>
+        <a href="http://localhost:8788/jobs/{j.id}" style="margin-left:8px;color:#2563eb">Review in dashboard ↗</a>
       </div>
     </div>
     """
@@ -36,7 +36,7 @@ def _job_card_md(j: Job) -> str:
         f"*{j.title}* — {j.company}\n"
         f"📍 {j.location or 'n/a'}  ·  ⭐ {j.match_score}/100  ·  `{j.source}`\n"
         f"_{j.match_reasoning}_\n"
-        f"[Open posting]({j.url})  ·  [Review](http://localhost:3737/jobs/{j.id})"
+        f"[Open posting]({j.url})  ·  [Review](http://localhost:8788/jobs/{j.id})"
     )
 
 

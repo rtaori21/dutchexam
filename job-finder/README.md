@@ -91,7 +91,7 @@ LinkedIn Easy Apply via Playwright. Disabled by default. When enabled it logs in
 
 ### Dashboard
 
-A Next.js 15 app at `localhost:3737` with these pages:
+A Next.js 15 app at `localhost:8788` with these pages:
 
 - **Feed** — searchable, filterable list of all jobs with inline approve/reject/status, scores, salary, recruiter chips, source labels.
 - **Sources** — built-in scraper toggles + per-site intervals + custom company URLs.
@@ -141,7 +141,7 @@ Items can be toggled in/out of the LLM context per-item, so you can keep private
 ```
                     +-------------------------------------------------+
                     |                  Next.js 15 dashboard            |
-                    |                http://localhost:3737             |
+                    |                http://localhost:8788             |
                     +-------------------+------------------------------+
                                         |
                                         | REST + JSON
@@ -184,7 +184,7 @@ Items can be toggled in/out of the LLM context per-item, so you can keep private
 The whole system is one process per service:
 
 - **Backend** — FastAPI on port 8787. APScheduler runs in-process; no separate worker.
-- **Frontend** — Next.js dev / standalone server on port 3737, bundled with the API base URL at build time.
+- **Frontend** — Next.js dev / standalone server on port 8788, bundled with the API base URL at build time.
 
 There is no message queue, no Redis, no Postgres. SQLite handles everything fine for one user's job search.
 
@@ -242,7 +242,7 @@ That single command:
 5. `docker compose up -d`
 6. Prints the URLs
 
-Open **http://localhost:3737** for the dashboard. Backend Swagger is at **http://localhost:8787/docs**.
+Open **http://localhost:8788** for the dashboard. Backend Swagger is at **http://localhost:8787/docs**.
 
 To stop, run `docker compose down`. Your data persists on the host in `./data/`, `./resumes/`, `./config/`, `./backend/.env` — these are bind-mounted, not container-internal, so nothing is lost on `down`.
 
@@ -268,7 +268,7 @@ cd job-finder
 ./scripts/run.sh
 ```
 
-First run creates `backend/.venv`, installs the backend (`pip install -e backend`), installs the frontend (`npm install`), copies `backend/.env.example` → `backend/.env`, and starts both servers with hot reload. Open `http://localhost:3737`.
+First run creates `backend/.venv`, installs the backend (`pip install -e backend`), installs the frontend (`npm install`), copies `backend/.env.example` → `backend/.env`, and starts both servers with hot reload. Open `http://localhost:8788`.
 
 You will also need to install Playwright Chromium once after the venv is created:
 
@@ -288,7 +288,7 @@ cd job-finder
 ./scripts/docker-up.sh    # or ./scripts/run.sh for native
 ```
 
-Open http://localhost:3737. The header health dot should be green within a minute (DB initialised, scheduler running, no LLM configured yet so it will read "warn" until step 2).
+Open http://localhost:8788. The header health dot should be green within a minute (DB initialised, scheduler running, no LLM configured yet so it will read "warn" until step 2).
 
 ### 2. Configure the LLM
 
@@ -966,8 +966,8 @@ To start fresh: stop the backend, delete `data/jobs.db`, restart. Schema is recr
 ## Security notes
 
 - **`backend/.env` is gitignored** and bind-mounted from the host into the Docker container. Secrets never bake into the image.
-- **The dashboard binds to `localhost`** by default in both Docker (port mapping is `localhost:3737`) and native modes. Do not expose it to the public internet — it has no auth layer.
-- **CORS is permissive** for any localhost origin so the dashboard at `:3737` can hit the API at `:8787`.
+- **The dashboard binds to `localhost`** by default in both Docker (port mapping is `localhost:8788`) and native modes. Do not expose it to the public internet — it has no auth layer.
+- **CORS is permissive** for any localhost origin so the dashboard at `:8788` can hit the API at `:8787`.
 - **Secrets are masked** in `/api/env` GET responses (only first/last four chars exposed). The frontend never receives the full secret, and a "type a new value" pattern means saves don't accidentally clobber masked values.
 - **LinkedIn cookies** persist at `data/linkedin_state.json`. Treat that file as a credential — anyone with it can act as you on LinkedIn.
 - **PDFs and tailored markdown** in `data/output/` may contain personal information from your resume. They are not encrypted at rest.

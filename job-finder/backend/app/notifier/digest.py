@@ -37,7 +37,7 @@ def build_digest(window_hours: int = 12) -> str:
             ).scalars()
         )
         new_lines = [
-            f"⭐ {j.match_score} · *{j.title}* — {j.company}, {j.location or '?'}\n  [open]({j.url}) · [review](http://localhost:3737/jobs/{j.id})"
+            f"⭐ {j.match_score} · *{j.title}* — {j.company}, {j.location or '?'}\n  [open]({j.url}) · [review](http://localhost:8788/jobs/{j.id})"
             for j in new_jobs
         ]
         parts.append(_section("🎯 New matches", new_lines))
@@ -52,7 +52,7 @@ def build_digest(window_hours: int = 12) -> str:
             ).scalars()
         )
         awaiting_lines = [
-            f"⭐ {j.match_score} · *{j.title}* — {j.company}\n  [review](http://localhost:3737/jobs/{j.id})"
+            f"⭐ {j.match_score} · *{j.title}* — {j.company}\n  [review](http://localhost:8788/jobs/{j.id})"
             for j in awaiting
         ]
         parts.append(_section("⏳ Awaiting your decision", awaiting_lines))
